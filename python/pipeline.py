@@ -11,45 +11,41 @@ class Pipeline:
         self.send_email(summary)
 
     def send_email(self, summary):
-        if self.config.send_email_summary():
-            self.log.info("Sending email")
-            self.emailer.send(summary)
-        else:
+        if not self.config.send_email_summary():
             self.log.info("Email disabled")
+            return
+
+        self.log.info("Sending email")
+        self.emailer.send(summary)
 
     def create_email_summary(self, deploy_successful, tests_passed):
-        if tests_passed:
-            if deploy_successful:
-                summary = "Deployment completed successfully"
-            else:
-                summary = "Deployment failed"
-        else:
-            summary = "Tests failed"
-        return summary
+        if not tests_passed:
+            return "Tests failed"
+
+        if not deploy_successful:
+            return "Deployment failed"
+
+        return "Deployment completed successfully"
 
     def deploy_successful(self, project, tests_passed):
-        if tests_passed:
-            deploy_success = self.is_success(project.deploy(), "Deployment successful", "Deployment failed")
-        else:
-            deploy_success = False
+        if not tests_passed:
+            return False
 
-        return deploy_success
+        if "success" != project.deploy():
+            self.log.error("Deployment failed")
+            return False
+
+        self.log.info("Deployment successful")
+        return True
 
     def run_tests(self, project):
-        if project.has_tests():
-            tests_passed = self.is_success(project.run_tests(), "Tests passed", "Tests failed")
-        else:
+        if not project.has_tests():
             self.log.info("No tests")
-            tests_passed = True
+            return True
 
-        return tests_passed
+        if "success" != project.run_tests():
+            self.log.error("Tests failed")
+            return False
 
-    def is_success(self, method, log_info, log_error):
-        if "success" == method:
-            self.log.info(log_info)
-            result = True
-        else:
-            self.log.error(log_error)
-            result = False
-
-        return result
+        self.log.info("Tests passed")
+        return True
